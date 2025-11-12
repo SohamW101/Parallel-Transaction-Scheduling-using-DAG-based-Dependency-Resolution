@@ -3,7 +3,7 @@ CXXFLAGS = -std=c++17 -O2 -Iinclude
 
 SRC = $(wildcard src/*.cpp)
 OBJ = $(SRC:.cpp=.o)
-EXEC = parallel_blockchain
+EXEC = project_cpp
 
 all: $(EXEC)
 
