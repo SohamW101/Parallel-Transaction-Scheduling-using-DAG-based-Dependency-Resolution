@@ -6,6 +6,7 @@
 using namespace std;
 
 int main() {
+    srand(time(nullptr));
     cout << "=== Parallel Blockchain Verification System ===\n";
 
     auto transactions = createSampleTransactions();
@@ -25,10 +26,15 @@ int main() {
     executor.executeSequential(dag);
 
     cout << "\n==========================";
-    cout << "\n Mode 2: Parallel Batch Execution";
+    cout << "\n Mode 2: Parallel Batch Simulation";
     cout << "\n==========================";
     executor.executeParallelBatches(dag);
 
-    cout << "\nParallel batch simulation complete.\n";
+    cout << "\n==========================";
+    cout << "\n Mode 3: Real Multithreaded Execution";
+    cout << "\n==========================";
+    executor.executeParallelBatchesWithThreads(dag);
+
+    cout << "\nParallel multithreaded execution demo complete.\n";
     return 0;
 }

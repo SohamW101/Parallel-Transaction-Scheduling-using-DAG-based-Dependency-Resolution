@@ -10,6 +10,7 @@ class Executor {
 public:
     void executeSequential(const DAG &dag);
     void executeParallelBatches(const DAG &dag);
+    void executeParallelBatchesWithThreads(const DAG &dag); // New in Commit 4
 };
 
 #endif // EXECUTOR_H

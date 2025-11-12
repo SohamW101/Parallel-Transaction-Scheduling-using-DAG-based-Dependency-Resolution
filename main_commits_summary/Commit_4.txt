@@ -1,0 +1,7 @@
+## Summary - Commit-4
+| Feature | Description |
+|----------|--------------|
+| Multithreading | Each transaction runs on a separate thread |
+| Mutex Protection | Safe output printing |
+| Thread Synchronization | `join()` ensures batch completion |
+| Real Concurrency | Simulated time delays emulate computation |
