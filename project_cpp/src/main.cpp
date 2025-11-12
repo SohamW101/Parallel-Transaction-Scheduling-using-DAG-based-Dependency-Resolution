@@ -7,27 +7,19 @@
 int main() {
     std::cout << "=== Parallel Blockchain Verification System ===\n";
 
-    // Create sample transactions
     auto transactions = createSampleTransactions();
 
-    // Display transactions
-    for (auto &tx : transactions) {
-        tx.display();
-    }
+    std::cout << "\n Transactions in Block:\n";
+    for (auto &tx : transactions) tx.display();
 
-    // Build simple DAG (for now manually)
     DAG dag;
-    for (auto &tx : transactions) dag.addTransaction(tx);
-
-    dag.addEdge("Tx1", "Tx3"); // Tx3 depends on Tx1
-    // Tx2 independent
+    dag.buildFromTransactions(transactions);
 
     dag.displayGraph();
 
-    // Execute sequentially (parallel logic will be added later)
     Executor executor;
     executor.executeSequential(dag);
 
-    std::cout << "\nSetup successful. DAG structure ready for dependency logic.\n";
+    std::cout << "\n DAG construction and sequential topological execution complete.\n";
     return 0;
 }

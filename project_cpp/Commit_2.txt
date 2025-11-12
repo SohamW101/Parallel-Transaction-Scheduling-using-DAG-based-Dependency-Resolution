@@ -1,0 +1,9 @@
+Summary — Commit 2 Adds
+
+| Component | Description |
+|------------|-------------|
+| **Dependency Detection** | Automatic edge creation using read/write overlaps |
+| **Dynamic DAG Building** | No manual edge addition required |
+| **Topological Sort** | Sequential Kahn’s Algorithm traversal |
+| **Improved Output** | Clean display of DAG + execution steps |
+| **Fully Modular** | No circular includes; all logic in separate files |

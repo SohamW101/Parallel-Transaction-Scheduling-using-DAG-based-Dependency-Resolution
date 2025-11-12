@@ -2,6 +2,7 @@
 #define DAG_H
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <string>
 #include "Transaction.h"
@@ -12,6 +13,8 @@ private:
     std::unordered_map<std::string, int> inDegree;
 
 public:
+    void buildFromTransactions(const std::vector<Transaction> &txs);
+
     void addTransaction(const Transaction &tx);
     void addEdge(const std::string &from, const std::string &to);
     void displayGraph() const;
