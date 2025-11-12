@@ -3,23 +3,32 @@
 #include "DAG.h"
 #include "Executor.h"
 #include "Utils.h"
+using namespace std;
 
 int main() {
-    std::cout << "=== Parallel Blockchain Verification System ===\n";
+    cout << "=== Parallel Blockchain Verification System ===\n";
 
     auto transactions = createSampleTransactions();
 
-    std::cout << "\n Transactions in Block:\n";
+    cout << "\nTransactions in Block:\n";
     for (auto &tx : transactions) tx.display();
 
     DAG dag;
     dag.buildFromTransactions(transactions);
-
     dag.displayGraph();
 
     Executor executor;
+
+    cout << "\n==========================";
+    cout << "\n Mode 1: Sequential Execution";
+    cout << "\n==========================";
     executor.executeSequential(dag);
 
-    std::cout << "\n DAG construction and sequential topological execution complete.\n";
+    cout << "\n==========================";
+    cout << "\n Mode 2: Parallel Batch Execution";
+    cout << "\n==========================";
+    executor.executeParallelBatches(dag);
+
+    cout << "\nParallel batch simulation complete.\n";
     return 0;
 }

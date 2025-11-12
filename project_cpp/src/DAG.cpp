@@ -53,9 +53,9 @@ void DAG::buildFromTransactions(const std::vector<Transaction> &txs) {
 }
 
 void DAG::displayGraph() const {
-    std::cout << "\n🔗 DAG Dependency Graph:\n";
+    std::cout << "\n DAG Dependency Graph:\n";
     for (auto &pair : adjList) {
-        std::cout << "  " << pair.first << " → ";
+        std::cout << "  " << pair.first << " ->";
         for (auto &v : pair.second) std::cout << v << " ";
         std::cout << "\n";
     }

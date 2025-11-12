@@ -1,13 +1,11 @@
----
+Summary - Commit 1 Adds
 
-Summary: What this Commit Achieves**
+| Component | Description |
+|------------|-------------|
+|Modular File Structre| Class Definitions|
+|Makefile Setup| Sample Transactions|
+|Test Run(build + display graphs)| 
 
-
-
- Modular file structure 
- Makefile setup
- Sample transactions 
- Test run (build + display graph) 
 
 
 

@@ -1,0 +1,7 @@
+ Summary - Commit_3 Adds
+
+| Componennt | Description |
+|----------|-------------|
+| Batch Execution | Groups all independent transactions together |
+| Topological Levels | Each batch = one level in DAG |
+| Maintains Sequential Mode | For verification and debugging |
