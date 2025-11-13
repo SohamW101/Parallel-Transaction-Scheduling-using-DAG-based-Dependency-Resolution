@@ -32,6 +32,5 @@ int main() {
     cout << "\nFinal ";
     state.display();
 
-    cout << "\nCommit 7 complete.\n";
     return 0;
 }

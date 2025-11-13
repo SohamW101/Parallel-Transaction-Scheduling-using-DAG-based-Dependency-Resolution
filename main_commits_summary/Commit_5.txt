@@ -1,4 +1,4 @@
-# Summary - Commit 5 
+# Summary - Priority Queue for transaction scheduling
 
 ## What This Commit Adds
 Transactions often compete for execution priority.  

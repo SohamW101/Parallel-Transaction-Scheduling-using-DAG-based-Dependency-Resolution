@@ -1,0 +1,13 @@
+# Commit 8 — Conflict Detection & Safe Parallel State Updates
+
+## What changed
+- Batches are partitioned into conflict-free groups before parallel evaluation.
+- Conflict rules used:
+  - A.write ∩ B.read  => conflict
+  - A.write ∩ B.write => conflict
+  - A.read  ∩ B.write => conflict
+- Each group is evaluated in parallel; group deltas are merged atomically into global state.
+- This avoids concurrent conflicting writes/reads without requiring fine-grained locks.
+
+
+
