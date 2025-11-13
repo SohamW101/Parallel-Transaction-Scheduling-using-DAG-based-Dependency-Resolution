@@ -1,0 +1,6 @@
+digraph DAG {
+    "Tx3";
+    "Tx2";
+    "Tx1";
+    "Tx1" -> "Tx3";
+}

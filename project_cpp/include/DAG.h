@@ -2,25 +2,33 @@
 #define DAG_H
 
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 #include <string>
+#include <unordered_set>
 #include "Transaction.h"
+using namespace std;
 
 class DAG {
 private:
-    std::unordered_map<std::string, std::vector<std::string>> adjList;
-    std::unordered_map<std::string, int> inDegree;
+    unordered_map<string, vector<string>> adj;
+    unordered_map<string, int> indegree;
 
 public:
-    void buildFromTransactions(const std::vector<Transaction> &txs);
+    DAG() = default;
 
-    void addTransaction(const Transaction &tx);
-    void addEdge(const std::string &from, const std::string &to);
+    void addNode(const string &id);
+
+    // addEdge now prevents duplicates
+    void addEdge(const string &from, const string &to);
+
+    void buildFromTransactions(const vector<Transaction> &txs);
+
+    const unordered_map<string, vector<string>>& getAdjList() const { return adj; }
+    const unordered_map<string, int>& getInDegree() const { return indegree; }
+
     void displayGraph() const;
 
-    const std::unordered_map<std::string, std::vector<std::string>> &getAdjList() const;
-    const std::unordered_map<std::string, int> &getInDegree() const;
+    vector<string> getAllNodes() const;
 };
 
 #endif // DAG_H

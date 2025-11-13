@@ -1,0 +1,18 @@
+# Commit 10 — DAG Export & Visualization Support
+
+This commit introduces visualization tools for the DAG:
+- Export to GraphViz DOT format
+- Export to JSON format
+
+## Files Exported
+- dag_output.dot → for GraphViz
+- dag_output.json → for web tools or JS visualizers
+
+## Usage
+- DOT:
+    dot -Tpng dag_output.dot -o dag.png
+
+- JSON:
+    Use in Visualization Libraries (D3.js, Cytoscape, Sigma.js, etc.)
+
+This commit does not change execution logic and is fully compatible with Commit 9.
