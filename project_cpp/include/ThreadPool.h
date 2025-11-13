@@ -7,6 +7,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <functional>
+#include <atomic>
 using namespace std;
 
 class ThreadPool {
@@ -18,10 +19,12 @@ private:
     condition_variable condition;
     bool stop;
 
+    atomic<size_t> activeTasks;
+
 public:
     ThreadPool(size_t threads);
     void enqueue(function<void()> task);
-    void waitAll();
+    void waitAll(); // waits until both queue empty and active tasks 0
     ~ThreadPool();
 };
 

@@ -1,0 +1,8 @@
+# Summary - Commit 7 — Global State Representation
+
+## What this commit adds
+- A `State` class (simple key -> balance map).
+- Transactions evaluated in parallel per batch to compute *local deltas*.
+- After each batch evaluation, deltas merged sequentially into the global `State`.
+- ThreadPool improved to track active tasks to allow correct batch waiting.
+

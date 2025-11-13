@@ -1,8 +1,9 @@
 #include "ThreadPool.h"
 #include <iostream>
+#include <chrono>
 using namespace std;
 
-ThreadPool::ThreadPool(size_t threads) : stop(false) {
+ThreadPool::ThreadPool(size_t threads) : stop(false), activeTasks(0) {
     for (size_t i = 0; i < threads; i++) {
         workers.emplace_back([this]() {
             while (true) {
@@ -19,9 +20,19 @@ ThreadPool::ThreadPool(size_t threads) : stop(false) {
 
                     task = move(tasks.front());
                     tasks.pop();
+                    activeTasks.fetch_add(1, memory_order_relaxed);
                 }
 
-                task();
+                // execute outside lock
+                try {
+                    task();
+                } catch (...) {
+                    // swallow exceptions for demo
+                }
+
+                activeTasks.fetch_sub(1, memory_order_relaxed);
+                // after finishing a task, notify any waiters
+                condition.notify_all();
             }
         });
     }
@@ -36,14 +47,10 @@ void ThreadPool::enqueue(function<void()> task) {
 }
 
 void ThreadPool::waitAll() {
-    while (true) {
-        {
-            lock_guard<mutex> lock(queueMutex);
-            if (tasks.empty())
-                break;
-        }
-        this_thread::sleep_for(chrono::milliseconds(10));
-    }
+    unique_lock<mutex> lock(queueMutex);
+    condition.wait(lock, [this]() {
+        return tasks.empty() && activeTasks.load(memory_order_relaxed) == 0;
+    });
 }
 
 ThreadPool::~ThreadPool() {
