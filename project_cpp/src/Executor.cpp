@@ -6,66 +6,59 @@
 #include <chrono>
 using namespace std;
 
-extern mutex coutMutex;
+mutex coutMutex;
 
-// Helper comparator for priority queue
-struct TxComparator {
-    bool operator()(const Transaction &a, const Transaction &b) const {
-        if (a.getFee() != b.getFee())
-            return a.getFee() < b.getFee(); // higher fee first
-        return a.getTimestamp() > b.getTimestamp(); // earlier timestamp first
-    }
-};
-
-// Commit 5: Priority Scheduled Parallel Execution
-void Executor::executePriorityScheduledBatches(const DAG &dag, const vector<Transaction> &txs) {
-    cout << "\nExecuting transactions using PRIORITY-based parallel batches...\n";
+// Commit 6: ThreadPool-based execution
+void Executor::executeWithThreadPool(const DAG &dag, const vector<Transaction> &txs) {
+    cout << "\nExecuting transactions with THREAD POOL parallelism...\n";
 
     auto adj = dag.getAdjList();
     auto indeg = dag.getInDegree();
 
-    // Map txID → Transaction object
     unordered_map<string, Transaction> lookup;
     for (const auto &tx : txs)
         lookup[tx.getId()] = tx;
 
-    priority_queue<Transaction, vector<Transaction>, TxComparator> pq;
-
-    // Insert all in-degree-0 transactions into PQ
-    for (auto &p : indeg)
-        if (p.second == 0)
-            pq.push(lookup[p.first]);
-
+    vector<string> batch;
     int batchNum = 1;
 
-    while (!pq.empty()) {
-        vector<Transaction> batch;
+    for (auto &p : indeg)
+        if (p.second == 0)
+            batch.push_back(p.first);
 
-        // Extract all currently ready txs
-        while (!pq.empty()) {
-            batch.push_back(pq.top());
-            pq.pop();
-        }
+    ThreadPool pool(4);  // Example: fixed pool of 4 worker threads
 
-        cout << "\nBatch " << batchNum++ << " (priority ordered): ";
-        for (auto &tx : batch) cout << tx.getId() << " ";
-        cout << "\n";
+    while (!batch.empty()) {
+        cout << "\nBatch " << batchNum++ << " started:\n";
 
         vector<string> nextReady;
 
-        // Reduce indegree of neighbors
-        for (auto &tx : batch) {
-            for (auto &nbr : adj.at(tx.getId())) {
+        for (auto &txID : batch) {
+            pool.enqueue([&, txID]() {
+                {
+                    lock_guard<mutex> lock(coutMutex);
+                    cout << "  Executing " << txID << " using worker thread "
+                         << this_thread::get_id() << "\n";
+                }
+
+                // Simulate work
+                this_thread::sleep_for(chrono::milliseconds(300));
+            });
+        }
+
+        pool.waitAll();
+
+        // Compute next batch
+        for (auto &txID : batch) {
+            for (auto &nbr : adj.at(txID)) {
                 indeg[nbr]--;
                 if (indeg[nbr] == 0)
                     nextReady.push_back(nbr);
             }
         }
 
-        // Put next ready nodes into PQ by priority
-        for (auto &id : nextReady)
-            pq.push(lookup[id]);
+        batch = nextReady;
     }
 
-    cout << "\nPriority-based batch execution complete.\n";
+    cout << "\nThread pool execution completed.\n";
 }

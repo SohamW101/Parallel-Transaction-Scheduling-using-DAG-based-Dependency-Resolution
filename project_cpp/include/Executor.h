@@ -3,6 +3,7 @@
 
 #include "DAG.h"
 #include "Transaction.h"
+#include "ThreadPool.h"
 #include <vector>
 #include <string>
 using namespace std;
@@ -13,6 +14,9 @@ public:
     void executeParallelBatches(const DAG &dag);
     void executeParallelBatchesWithThreads(const DAG &dag);
     void executePriorityScheduledBatches(const DAG &dag, const vector<Transaction> &txs);
+
+    // Commit 6: ThreadPool-based parallel execution
+    void executeWithThreadPool(const DAG &dag, const vector<Transaction> &txs);
 };
 
 #endif // EXECUTOR_H
