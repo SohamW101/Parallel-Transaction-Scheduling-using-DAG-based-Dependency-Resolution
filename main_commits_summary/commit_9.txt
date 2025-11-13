@@ -1,0 +1,25 @@
+# Commit 9 — Performance Metrics & Profiling
+
+This commit adds a complete metrics system to measure:
+
+- Total execution time
+- Per-batch execution time
+- Per-group execution time
+- Number of batches
+- Number of groups in each batch
+
+All logs are written to **metrics.log**.
+
+## New classes
+### Metrics
+Handles:
+- High-resolution timing  
+- Logging
+- Measuring durations of lambdas
+
+## Why this is important
+This commit enables you to show:
+- Parallel speedup
+- Batch distribution
+- Performance correctness
+- Efficient thread pool usage

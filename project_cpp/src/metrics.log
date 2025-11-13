@@ -1,0 +1,10 @@
+=== Execution Start ===
+Batch 1 size=2
+    Group count=1
+        Group 1 time=0ms
+Batch 1 duration=0ms
+Batch 2 size=1
+    Group count=1
+        Group 1 time=0ms
+Batch 2 duration=0ms
+=== Execution End ===

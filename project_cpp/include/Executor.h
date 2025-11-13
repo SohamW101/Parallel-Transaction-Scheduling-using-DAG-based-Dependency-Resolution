@@ -5,6 +5,7 @@
 #include "Transaction.h"
 #include "ThreadPool.h"
 #include "State.h"
+#include "Metrics.h"
 #include <vector>
 #include <string>
 using namespace std;
@@ -17,10 +18,8 @@ public:
     void executePriorityScheduledBatches(const DAG &dag, const vector<Transaction> &txs);
     void executeWithThreadPool(const DAG &dag, const vector<Transaction> &txs);
 
-    // Commit 7: State-aware execution
-    // For each batch: evaluate transactions in parallel to compute local deltas,
-    // then merge all deltas into the global state.
-    void executeWithState(DAG &dag, vector<Transaction> &txs, State &state, size_t threadPoolSize = 4);
+    // Commit 7/8 version
+    void executeWithState(DAG &dag, vector<Transaction> &txs, State &state, size_t threadPoolSize, Metrics &metrics);
 };
 
 #endif // EXECUTOR_H

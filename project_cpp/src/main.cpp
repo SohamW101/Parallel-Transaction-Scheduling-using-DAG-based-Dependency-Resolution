@@ -3,33 +3,28 @@
 #include "DAG.h"
 #include "Executor.h"
 #include "Utils.h"
+#include "Metrics.h"
 using namespace std;
 
 int main() {
     srand(time(nullptr));
-    cout << "=== Parallel Blockchain Verification System (Commit 7) ===\n";
 
-    auto transactions = createSampleTransactions();
-
-    cout << "\nTransactions in Block:\n";
-    for (auto &tx : transactions) tx.display();
-
+    auto txs = createSampleTransactions();
     DAG dag;
-    dag.buildFromTransactions(transactions);
-    dag.displayGraph();
+    dag.buildFromTransactions(txs);
 
     State state = createInitialState();
-    cout << "\nInitial ";
-    state.display();
-
     Executor executor;
 
-    cout << "\n===================================";
-    cout << "\n Mode 7: State-aware Parallel Execution (batch evaluation + merge)";
-    cout << "\n===================================\n";
-    executor.executeWithState(dag, transactions, state, 4);
+    Metrics metrics;
+    metrics.startGlobalTimer();
 
-    cout << "\nFinal ";
+    executor.executeWithState(dag, txs, state, 4, metrics);
+
+    long long totalMs = metrics.getElapsedMs();
+    long long totalUs = metrics.getElapsedUs();
+    cout << "\nTotal execution time: " << totalMs << " ms (" << totalUs << " us)\n\n";
+
     state.display();
 
     return 0;

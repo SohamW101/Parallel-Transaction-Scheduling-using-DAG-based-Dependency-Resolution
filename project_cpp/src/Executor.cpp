@@ -1,12 +1,16 @@
 #include "Executor.h"
+#include "Metrics.h"
 #include <iostream>
 #include <queue>
 #include <thread>
 #include <mutex>
 #include <chrono>
+#include <unordered_map>
+#include <functional>
 using namespace std;
 
-mutex coutMutex;
+// single mutex definition for console printing in this translation unit
+static mutex coutMutex;
 
 // helper: check conflict between two transactions using read/write sets
 static bool transactionsConflict(const Transaction &A, const Transaction &B) {
@@ -40,6 +44,7 @@ static vector<vector<string>> partitionIntoConflictFreeGroups(
             bool conflict_with_group = false;
             for (const auto &memberId : group) {
                 const Transaction &memberTx = lookup.at(memberId);
+                // check both directions (conservative)
                 if (transactionsConflict(tx, memberTx) || transactionsConflict(memberTx, tx)) {
                     conflict_with_group = true;
                     break;
@@ -58,95 +63,115 @@ static vector<vector<string>> partitionIntoConflictFreeGroups(
     return groups;
 }
 
-// Updated state-aware execution that uses conflict-free grouping inside batches
-void Executor::executeWithState(DAG &dag, vector<Transaction> &txs, State &state, size_t threadPoolSize) {
-    cout << "\nState-aware execution with conflict detection and safe parallel updates\n";
+// === state-aware execution with conflict detection and metrics ===
+void Executor::executeWithState(DAG &dag, vector<Transaction> &txs, State &state, size_t threadPoolSize, Metrics &metrics) {
+    cout << "\nState-aware execution with conflict detection + PERFORMANCE METRICS\n";
+
+    metrics.log("=== Execution Start ===");
 
     auto adj = dag.getAdjList();
     auto indeg = dag.getInDegree();
 
     unordered_map<string, Transaction> lookup;
-    for (const auto &tx : txs)
+    for (auto &tx : txs)
         lookup[tx.getId()] = tx;
 
-    // initial batch
+    ThreadPool pool(threadPoolSize);
+
     vector<string> batch;
     for (auto &p : indeg)
         if (p.second == 0)
             batch.push_back(p.first);
 
-    ThreadPool pool(threadPoolSize);
     int batchNum = 1;
 
     while (!batch.empty()) {
-        cout << "\nBatch " << batchNum++ << " : size = " << batch.size() << "\n";
 
-        // Partition batch into conflict-free groups
-        auto groups = partitionIntoConflictFreeGroups(batch, lookup);
-        int groupNum = 1;
-        for (auto &group : groups) {
-            cout << "  Group " << groupNum++ << " (parallel size = " << group.size() << ")\n";
+        { // print batch header to console and log
+            lock_guard<mutex> lock(coutMutex);
+            cout << "\nBatch " << batchNum << " size = " << batch.size() << "\n";
+        }
+        metrics.log("Batch " + to_string(batchNum) + " size=" + to_string(batch.size()));
 
-            // Evaluate transactions in group in parallel, collect local deltas
-            vector<unordered_map<string, long long>> localDeltas;
-            localDeltas.reserve(group.size());
-            mutex deltasMutex;
+        long long batchTime = metrics.measureDuration([&]() {
 
-            for (auto &txID : group) {
-                pool.enqueue([&, txID]() {
-                    unordered_map<string, long long> delta;
-                    const Transaction &t = lookup.at(txID);
+            auto groups = partitionIntoConflictFreeGroups(batch, lookup);
+            metrics.log("    Group count=" + to_string(groups.size()));
 
-                    // For demo: single-unit transfer from first read -> first write
-                    string from = "";
-                    string to = "";
-                    if (!t.getReadSet().empty()) from = *(t.getReadSet().begin());
-                    if (!t.getWriteSet().empty()) to = *(t.getWriteSet().begin());
+            int groupNum = 1;
 
-                    if (!from.empty() && !to.empty()) {
-                        delta[from] -= 1;
-                        delta[to] += 1;
+            for (auto &group : groups) {
+                { // print group header
+                    lock_guard<mutex> lock(coutMutex);
+                    cout << "  Group " << groupNum << " (parallel size = " << group.size() << ")\n";
+                }
+                long long groupTime = metrics.measureDuration([&]() {
+
+                    vector<unordered_map<string, long long>> localDeltas;
+                    localDeltas.reserve(group.size());
+                    mutex deltasMutex;
+
+                    for (auto &txID : group) {
+                        pool.enqueue([&, txID]() {
+                            unordered_map<string, long long> delta;
+                            const Transaction &t = lookup.at(txID);
+                            string from = ""; string to = "";
+                            if (!t.getReadSet().empty()) from = *t.getReadSet().begin();
+                            if (!t.getWriteSet().empty()) to = *t.getWriteSet().begin();
+                            if (!from.empty() && !to.empty()) {
+                                delta[from]--;
+                                delta[to]++;
+                            }
+
+                            {
+                                lock_guard<mutex> lock(deltasMutex);
+                                localDeltas.push_back(move(delta));
+                            }
+
+                            {
+                                lock_guard<mutex> lock(coutMutex);
+                                cout << "    Evaluated " << txID << " on thread " << this_thread::get_id() << "\n";
+                            }
+                        });
                     }
 
-                    {
-                        lock_guard<mutex> lock(deltasMutex);
-                        localDeltas.push_back(move(delta));
-                    }
+                    pool.waitAll();
 
+                    unordered_map<string, long long> merged;
+                    for (auto &d : localDeltas)
+                        for (auto &p : d)
+                            merged[p.first] += p.second;
+
+                    // Print merged message before applying to state for clarity
                     {
                         lock_guard<mutex> lock(coutMutex);
-                        cout << "    Evaluated " << txID << " on thread " << this_thread::get_id() << "\n";
+                        cout << "    Merged group delta into global state\n";
                     }
-                });
+
+                    state.applyDelta(merged);
+
+                }); // end measureDuration for group
+
+                metrics.log("        Group " + to_string(groupNum) + " time=" + to_string(groupTime) + "ms");
+                groupNum++;
             }
 
-            // Wait for group tasks to finish
-            pool.waitAll();
+        }); // end measureDuration for batch
 
-            // Merge group deltas into batchDelta (sequential merge for atomicity)
-            unordered_map<string, long long> groupDelta;
-            for (auto &d : localDeltas) {
-                for (auto &p : d) groupDelta[p.first] += p.second;
-            }
+        metrics.log("Batch " + to_string(batchNum) + " duration=" + to_string(batchTime) + "ms");
 
-            // Apply group's delta to global state
-            state.applyDelta(groupDelta);
-            {
-                lock_guard<mutex> lock(coutMutex);
-                cout << "    Merged group delta into global state\n";
-            }
-        } // end groups
-
-        // After all groups in the batch processed and merged, compute next batch
+        // Next batch calculation
         vector<string> nextBatch;
-        for (auto &txID : batch) {
-            for (auto &nbr : adj.at(txID)) {
-                indeg[nbr]--;
-                if (indeg[nbr] == 0) nextBatch.push_back(nbr);
+        for (auto &tx : batch) {
+            for (auto &nbr : adj.at(tx)) {
+                if (--indeg[nbr] == 0) nextBatch.push_back(nbr);
             }
         }
-        batch = nextBatch;
-    } // end while
 
-    cout << "\nConflict-aware state execution finished.\n";
+        batch = move(nextBatch);
+        batchNum++;
+    }
+
+    metrics.log("=== Execution End ===");
+    cout << "\nExecution with metrics complete.\n";
 }
