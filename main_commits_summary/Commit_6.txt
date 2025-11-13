@@ -1,0 +1,10 @@
+# Commit 6 — Thread Pool Integration
+
+## What This Commit Adds
+Instead of creating a new thread for each transaction, we now use a fixed-size **ThreadPool**.
+
+### Benefits:
+- Reuses threads
+- Avoids thread creation overhead
+- Scales to thousands of transactions
+- Realistic for blockchain VMs and validators
