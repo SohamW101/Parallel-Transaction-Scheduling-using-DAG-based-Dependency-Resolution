@@ -4,22 +4,30 @@
 #include <string>
 #include <unordered_set>
 #include <iostream>
+using namespace std;
 
 class Transaction {
 private:
-    std::string id;
-    std::unordered_set<std::string> readSet;
-    std::unordered_set<std::string> writeSet;
+    string id;
+    unordered_set<string> readSet;
+    unordered_set<string> writeSet;
+    int fee;
+    long long timestamp;
 
 public:
     Transaction() = default;
-    Transaction(const std::string &txId,
-                const std::unordered_set<std::string> &readSet,
-                const std::unordered_set<std::string> &writeSet);
 
-    const std::string &getId() const;
-    const std::unordered_set<std::string> &getReadSet() const;
-    const std::unordered_set<std::string> &getWriteSet() const;
+    Transaction(const string &txId,
+                const unordered_set<string> &readSet,
+                const unordered_set<string> &writeSet,
+                int fee,
+                long long timestamp);
+
+    const string &getId() const;
+    const unordered_set<string> &getReadSet() const;
+    const unordered_set<string> &getWriteSet() const;
+    int getFee() const;
+    long long getTimestamp() const;
 
     void display() const;
 };

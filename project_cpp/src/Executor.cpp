@@ -6,115 +6,66 @@
 #include <chrono>
 using namespace std;
 
-static mutex coutMutex;
+extern mutex coutMutex;
 
-// Sequential execution
-void Executor::executeSequential(const DAG &dag) {
-    cout << "\nExecuting transactions sequentially (topological order)...\n";
+// Helper comparator for priority queue
+struct TxComparator {
+    bool operator()(const Transaction &a, const Transaction &b) const {
+        if (a.getFee() != b.getFee())
+            return a.getFee() < b.getFee(); // higher fee first
+        return a.getTimestamp() > b.getTimestamp(); // earlier timestamp first
+    }
+};
+
+// Commit 5: Priority Scheduled Parallel Execution
+void Executor::executePriorityScheduledBatches(const DAG &dag, const vector<Transaction> &txs) {
+    cout << "\nExecuting transactions using PRIORITY-based parallel batches...\n";
 
     auto adj = dag.getAdjList();
     auto indeg = dag.getInDegree();
 
-    queue<string> q;
+    // Map txID → Transaction object
+    unordered_map<string, Transaction> lookup;
+    for (const auto &tx : txs)
+        lookup[tx.getId()] = tx;
+
+    priority_queue<Transaction, vector<Transaction>, TxComparator> pq;
+
+    // Insert all in-degree-0 transactions into PQ
     for (auto &p : indeg)
         if (p.second == 0)
-            q.push(p.first);
+            pq.push(lookup[p.first]);
 
-    int step = 1;
-    while (!q.empty()) {
-        string tx = q.front(); q.pop();
-        cout << "  Step " << step++ << ": Executing " << tx << "\n";
-
-        for (auto &nbr : adj.at(tx)) {
-            indeg[nbr]--;
-            if (indeg[nbr] == 0)
-                q.push(nbr);
-        }
-    }
-    cout << "Sequential execution complete.\n";
-}
-
-// Parallel batch simulation (Commit 3)
-void Executor::executeParallelBatches(const DAG &dag) {
-    cout << "\nExecuting transactions in PARALLEL batches (simulated)...\n";
-
-    auto adj = dag.getAdjList();
-    auto indeg = dag.getInDegree();
-
-    vector<string> batch;
     int batchNum = 1;
 
-    for (auto &p : indeg)
-        if (p.second == 0)
-            batch.push_back(p.first);
+    while (!pq.empty()) {
+        vector<Transaction> batch;
 
-    while (!batch.empty()) {
-        cout << "\nBatch " << batchNum++ << ": ";
-        for (auto &tx : batch) cout << tx << " ";
+        // Extract all currently ready txs
+        while (!pq.empty()) {
+            batch.push_back(pq.top());
+            pq.pop();
+        }
+
+        cout << "\nBatch " << batchNum++ << " (priority ordered): ";
+        for (auto &tx : batch) cout << tx.getId() << " ";
         cout << "\n";
 
-        vector<string> nextBatch;
+        vector<string> nextReady;
+
+        // Reduce indegree of neighbors
         for (auto &tx : batch) {
-            for (auto &nbr : adj.at(tx)) {
+            for (auto &nbr : adj.at(tx.getId())) {
                 indeg[nbr]--;
                 if (indeg[nbr] == 0)
-                    nextBatch.push_back(nbr);
+                    nextReady.push_back(nbr);
             }
         }
 
-        batch = nextBatch;
+        // Put next ready nodes into PQ by priority
+        for (auto &id : nextReady)
+            pq.push(lookup[id]);
     }
 
-    cout << "\nParallel batch simulation complete.\n";
-}
-
-// Commit 4: Real multithreaded parallel execution
-void Executor::executeParallelBatchesWithThreads(const DAG &dag) {
-    cout << "\nExecuting transactions in PARALLEL batches (with threads)...\n";
-
-    auto adj = dag.getAdjList();
-    auto indeg = dag.getInDegree();
-
-    vector<string> batch;
-    int batchNum = 1;
-
-    for (auto &p : indeg)
-        if (p.second == 0)
-            batch.push_back(p.first);
-
-    while (!batch.empty()) {
-        cout << "\nStarting Batch " << batchNum++ << ":\n";
-
-        vector<thread> threads;
-        for (auto &tx : batch) {
-            threads.emplace_back([&, tx]() {
-                {
-                    lock_guard<mutex> lock(coutMutex);
-                    cout << "  Executing " << tx << " in thread " 
-                         << this_thread::get_id() << "...\n";
-                }
-                this_thread::sleep_for(chrono::milliseconds(500 + rand() % 500));
-                {
-                    lock_guard<mutex> lock(coutMutex);
-                    cout << "  Completed " << tx << "\n";
-                }
-            });
-        }
-
-        for (auto &t : threads)
-            t.join();
-
-        vector<string> nextBatch;
-        for (auto &tx : batch) {
-            for (auto &nbr : adj.at(tx)) {
-                indeg[nbr]--;
-                if (indeg[nbr] == 0)
-                    nextBatch.push_back(nbr);
-            }
-        }
-
-        batch = nextBatch;
-    }
-
-    cout << "\nAll batches executed successfully with multithreading.\n";
+    cout << "\nPriority-based batch execution complete.\n";
 }

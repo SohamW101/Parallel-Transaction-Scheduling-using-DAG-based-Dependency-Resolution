@@ -1,0 +1,12 @@
+# Summary - Commit 5 
+
+## What This Commit Adds
+Transactions often compete for execution priority.  
+In this commit:
+
+- Each transaction now has a fee and timestamp.
+- A priority queue orders ready transactions by:
+  1. Higher fee first  
+  2. If fee ties → earlier timestamp first  
+- Parallel batches now execute in miner-like order.
+

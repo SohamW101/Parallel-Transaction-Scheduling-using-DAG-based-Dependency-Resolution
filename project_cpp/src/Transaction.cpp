@@ -1,25 +1,25 @@
 #include "Transaction.h"
 
-Transaction::Transaction(const std::string &txId,
-                         const std::unordered_set<std::string> &rSet,
-                         const std::unordered_set<std::string> &wSet)
-    : id(txId), readSet(rSet), writeSet(wSet) {}
+Transaction::Transaction(const string &txId,
+                         const unordered_set<string> &rSet,
+                         const unordered_set<string> &wSet,
+                         int f,
+                         long long ts)
+    : id(txId), readSet(rSet), writeSet(wSet), fee(f), timestamp(ts) {}
 
-const std::string &Transaction::getId() const { return id; }
-
-const std::unordered_set<std::string> &Transaction::getReadSet() const {
-    return readSet;
-}
-
-const std::unordered_set<std::string> &Transaction::getWriteSet() const {
-    return writeSet;
-}
+const string &Transaction::getId() const { return id; }
+const unordered_set<string> &Transaction::getReadSet() const { return readSet; }
+const unordered_set<string> &Transaction::getWriteSet() const { return writeSet; }
+int Transaction::getFee() const { return fee; }
+long long Transaction::getTimestamp() const { return timestamp; }
 
 void Transaction::display() const {
-    std::cout << "Transaction ID: " << id << "\n";
-    std::cout << "  Read Set: ";
-    for (auto &r : readSet) std::cout << r << " ";
-    std::cout << "\n  Write Set: ";
-    for (auto &w : writeSet) std::cout << w << " ";
-    std::cout << "\n";
+    cout << "Transaction ID: " << id << "\n";
+    cout << "  Fee: " << fee << "\n";
+    cout << "  Timestamp: " << timestamp << "\n";
+    cout << "  Read Set: ";
+    for (auto &r : readSet) cout << r << " ";
+    cout << "\n  Write Set: ";
+    for (auto &w : writeSet) cout << w << " ";
+    cout << "\n";
 }

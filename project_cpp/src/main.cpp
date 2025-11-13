@@ -21,20 +21,9 @@ int main() {
     Executor executor;
 
     cout << "\n==========================";
-    cout << "\n Mode 1: Sequential Execution";
+    cout << "\n Mode 4: Priority-Based Scheduling";
     cout << "\n==========================";
-    executor.executeSequential(dag);
+    executor.executePriorityScheduledBatches(dag, transactions);
 
-    cout << "\n==========================";
-    cout << "\n Mode 2: Parallel Batch Simulation";
-    cout << "\n==========================";
-    executor.executeParallelBatches(dag);
-
-    cout << "\n==========================";
-    cout << "\n Mode 3: Real Multithreaded Execution";
-    cout << "\n==========================";
-    executor.executeParallelBatchesWithThreads(dag);
-
-    cout << "\nParallel multithreaded execution demo complete.\n";
     return 0;
 }
