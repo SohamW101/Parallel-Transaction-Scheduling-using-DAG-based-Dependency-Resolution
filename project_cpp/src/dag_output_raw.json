@@ -1,0 +1,23 @@
+{
+  "nodes": [
+    {"id": "Tx10"},
+    {"id": "Tx8"},
+    {"id": "Tx7"},
+    {"id": "Tx6"},
+    {"id": "Tx4"},
+    {"id": "Tx9"},
+    {"id": "Tx3"},
+    {"id": "Tx2"},
+    {"id": "Tx5"},
+    {"id": "Tx1"}
+  ],
+  "edges": [
+    {"from": "Tx10", "to": "Tx2"},
+    {"from": "Tx7", "to": "Tx5"},
+    {"from": "Tx6", "to": "Tx8"},
+    {"from": "Tx9", "to": "Tx10"},
+    {"from": "Tx3", "to": "Tx6"},
+    {"from": "Tx2", "to": "Tx7"},
+    {"from": "Tx1", "to": "Tx3"}
+  ]
+}

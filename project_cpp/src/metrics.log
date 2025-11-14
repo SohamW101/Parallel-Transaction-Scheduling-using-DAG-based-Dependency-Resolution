@@ -1,10 +1,22 @@
 === Execution Start ===
-Batch 1 size=2
+Batch 1 size=3
     Group count=1
-        Group 1 time=10ms
-Batch 1 duration=13ms
-Batch 2 size=1
+        Group 1 time=2ms
+Batch 1 duration=3ms
+Batch 2 size=2
     Group count=1
         Group 1 time=0ms
-Batch 2 duration=1ms
+Batch 2 duration=2ms
+Batch 3 size=2
+    Group count=1
+        Group 1 time=1ms
+Batch 3 duration=3ms
+Batch 4 size=2
+    Group count=1
+        Group 1 time=0ms
+Batch 4 duration=1ms
+Batch 5 size=1
+    Group count=1
+        Group 1 time=0ms
+Batch 5 duration=0ms
 === Execution End ===

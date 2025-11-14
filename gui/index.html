@@ -1,0 +1,396 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>DAG Executor Visualiser — Directed</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --sidebar: 320px; --controls-h: 56px; }
+    html,body { height:100%; margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+    #topbar { height: var(--controls-h); display:flex; align-items:center; gap:8px; padding:8px; background:#ffffffcc; position:fixed; left:0; right:var(--sidebar); top:0; z-index:12; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+    #controls button { padding:6px 10px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; }
+    #controls label { margin-left:12px; font-size:13px; color:#333; }
+    #root { position: absolute; top: var(--controls-h); left:0; right:var(--sidebar); bottom:0; }
+    svg { width:100%; height:100%; display:block; background:linear-gradient(#fbfbfd,#fff); cursor:grab; }
+    svg:active { cursor:grabbing; }
+    #sidebar { position:fixed; right:0; top:0; bottom:0; width:var(--sidebar); padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid #eee; background:#fafafa; }
+    .node { stroke:#333; stroke-width:1px; cursor:pointer; }
+    .link { stroke:#999; stroke-opacity:0.8; stroke-width:1.6; }
+    .node.pending { fill:#eee; }
+    .node.ready { fill:#ffd966; }
+    .node.running { fill:#ff8a65; }
+    .node.done { fill:#c8e6c9; }
+    .label { font-size:11px; pointer-events:none; user-select:none; }
+    .tiny { font-size:12px; color:#555; }
+    #events { margin-top:8px; max-height:36vh; overflow:auto; border-top:1px dashed #ddd; padding-top:8px; }
+    .ev { padding:6px; border-radius:6px; margin-bottom:6px; background:#fff; border:1px solid #eee; cursor:pointer; }
+    .ev:hover { background:#f4f8ff; }
+    .ev.active { border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,0.06); }
+    .muted { color:#666; font-size:12px; }
+    pre { white-space:pre-wrap; word-break:break-word; background:#fff; padding:8px; border-radius:6px; border:1px solid #eee; max-height:120px; overflow:auto; }
+  </style>
+</head>
+<body>
+  <div id="topbar">
+    <div id="controls">
+      <button id="play">Play ▶</button>
+      <button id="pause">Pause ⏸</button>
+      <button id="step">Step ➜</button>
+      <button id="reset">Reset ↺</button>
+      <label>Speed <input id="speed" type="range" min="80" max="2000" value="500" style="vertical-align:middle;margin-left:6px"></label>
+      <span id="position" class="muted" style="margin-left:10px"></span>
+    </div>
+  </div>
+
+  <div id="root">
+    <svg id="svg" tabindex="0">
+      <!-- marker defs will be injected -->
+    </svg>
+  </div>
+
+  <div id="sidebar">
+    <h3 style="margin:0 0 8px 0;">Inspector</h3>
+    <div><strong>Selected:</strong> <span id="selId" class="tiny">(click a node)</span></div>
+    <div style="margin-top:8px;">
+      <div><strong>State:</strong></div>
+      <div id="selState" class="muted tiny">—</div>
+    </div>
+    <div style="margin-top:10px;">
+      <div><strong>Last thread id</strong></div>
+      <div id="selThread" class="muted tiny">—</div>
+    </div>
+    <div style="margin-top:10px;">
+      <div><strong>Merged delta (last group)</strong></div>
+      <pre id="selDelta">{}</pre>
+    </div>
+    <h4 style="margin-top:12px;">Event Timeline</h4>
+    <div id="events" aria-live="polite"></div>
+  </div>
+
+  <script src="https://unpkg.com/d3@7"></script>
+  <script>
+  const svg = d3.select("#svg");
+  let width = Math.max(400, window.innerWidth - 320);
+  let height = Math.max(300, window.innerHeight - 56);
+  svg.attr("width", width).attr("height", height);
+
+  // add marker defs for arrowheads
+  const defs = svg.append("defs");
+  defs.append("marker")
+    .attr("id", "arrow")
+    .attr("viewBox", "0 -5 10 10")
+    .attr("refX", 20)   // position of arrow tip (tweak for circle radius)
+    .attr("refY", 0)
+    .attr("markerWidth", 8)
+    .attr("markerHeight", 8)
+    .attr("orient", "auto")
+    .append("path")
+    .attr("d", "M0,-5L10,0L0,5")
+    .attr("fill", "#666");
+
+  const gLinks = svg.append("g");
+  const gNodes = svg.append("g");
+
+  const playBtn = document.getElementById("play");
+  const pauseBtn = document.getElementById("pause");
+  const stepBtn = document.getElementById("step");
+  const resetBtn = document.getElementById("reset");
+  const speedInput = document.getElementById("speed");
+  const positionText = document.getElementById("position");
+
+  const selIdEl = document.getElementById("selId");
+  const selStateEl = document.getElementById("selState");
+  const selThreadEl = document.getElementById("selThread");
+  const selDeltaEl = document.getElementById("selDelta");
+  const eventsEl = document.getElementById("events");
+
+  let graph = null;
+  let trace = null;
+  let nodes = [];
+  let links = [];
+  let nodeById = new Map();
+  let nodeCircleById = new Map();
+  let nodeState = new Map();
+  let lastThreadForTx = new Map();
+  let lastMergedForGroup = [];
+  let playing = false;
+  let tickPtr = 0;
+  let timer = null;
+  let sim = null;
+
+  Promise.all([
+    fetch("dag_output.json").then(r => r.json()),
+    fetch("trace.json").then(r => r.json())
+  ]).then(([g, t]) => {
+    graph = g;
+    trace = t;
+    normalizeAndStart();
+  }).catch(e => {
+    alert("Failed to load dag_output.json or trace.json. Make sure both are present and served via http.");
+    console.error(e);
+  });
+
+  function normalizeAndStart() {
+    nodes = graph.nodes || graph.vertices || [];
+    if (!nodes || !Array.isArray(nodes)) {
+      if (Array.isArray(graph)) nodes = graph;
+      else nodes = [];
+    }
+
+    const rawEdges = graph.edges || graph.links || [];
+    links = rawEdges.map(e => {
+      const s = e.from || e.src || e.source;
+      const t = e.to || e.dst || e.target;
+      return { source: s, target: t };
+    });
+
+    nodes = nodes.map(x => (typeof x === "string") ? { id: x } : x);
+
+    setupForceLayout();
+    buildEventList();
+
+    tickPtr = 0;
+    playing = false;
+    updatePositionText();
+  }
+
+  function setupForceLayout() {
+    const MARGIN = 24;
+    const RADIUS = 22;
+
+    const zoom = d3.zoom()
+      .scaleExtent([0.3, 3])
+      .on("zoom", (event) => {
+        gLinks.attr("transform", event.transform);
+        gNodes.attr("transform", event.transform);
+      });
+    svg.call(zoom);
+
+    sim = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(links).id(d => d.id).distance(110).strength(0.9))
+      .force("charge", d3.forceManyBody().strength(-180))
+      .force("center", d3.forceCenter((width)/2, (height)/2))
+      .force("collide", d3.forceCollide(RADIUS + 6))
+      .alphaDecay(0.03);
+
+    // use marker-end on links to show arrows
+    gLinks.selectAll("line")
+      .data(links, d => `${d.source.id || d.source}-${d.target.id || d.target}`)
+      .join("line")
+      .attr("class", "link")
+      .attr("stroke-width", 1.6)
+      .attr("marker-end", "url(#arrow)");
+
+    const nodeG = gNodes.selectAll("g.node")
+      .data(nodes, d => d.id)
+      .join("g")
+      .attr("class", "node")
+      .call(d3.drag()
+        .on("start", (event,d) => { if (!event.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+        .on("drag", (event,d) => { d.fx = event.x; d.fy = event.y; })
+        .on("end", (event,d) => { if (!event.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+    nodeG.selectAll("*").remove();
+    nodeG.append("circle").attr("r", RADIUS).attr("class", "node pending").attr("stroke","#444").attr("stroke-width",1.2);
+    nodeG.append("text").attr("class","label").attr("y",5).attr("text-anchor","middle").text(d => d.id);
+
+    nodeById.clear();
+    nodeCircleById.clear();
+    nodeG.each(function(d) {
+      nodeById.set(d.id, d);
+      nodeCircleById.set(d.id, d3.select(this).select("circle"));
+      nodeState.set(d.id, "pending");
+    });
+
+    function clampNodePosition(d) {
+      const minX = MARGIN + RADIUS;
+      const maxX = (width - MARGIN) - RADIUS;
+      const minY = MARGIN + RADIUS;
+      const maxY = (height - MARGIN) - RADIUS;
+      if (d.x < minX) d.x = minX + (Math.random() * 6);
+      if (d.x > maxX) d.x = maxX - (Math.random() * 6);
+      if (d.y < minY) d.y = minY + (Math.random() * 6);
+      if (d.y > maxY) d.y = maxY - (Math.random() * 6);
+    }
+
+    sim.on("tick", () => {
+      nodes.forEach(clampNodePosition);
+
+      gLinks.selectAll("line")
+        .attr("x1", d => (d.source.x))
+        .attr("y1", d => (d.source.y))
+        .attr("x2", d => (d.target.x))
+        .attr("y2", d => (d.target.y));
+
+      gNodes.selectAll("g.node")
+        .attr("transform", d => `translate(${d.x},${d.y})`);
+    });
+
+    gNodes.selectAll("g.node").on("click", function(event,d) {
+      event.stopPropagation();
+      selectNode(d.id);
+    });
+
+    svg.on("dblclick.zoom", null);
+    svg.on("click", () => {
+      selIdEl.innerText = "(click a node)";
+      selStateEl.innerText = "—";
+      selThreadEl.innerText = "—";
+      selDeltaEl.innerText = "{}";
+    });
+  }
+
+  function buildEventList() {
+    eventsEl.innerHTML = "";
+    trace.forEach((ev, idx) => {
+      const div = document.createElement("div");
+      div.className = "ev";
+      div.dataset.idx = idx;
+      let title = ev.type;
+      if (ev.type === "batch_start") title = `Batch ${ev.batchId} start — ${ev.batch.length} tx`;
+      else if (ev.type === "group_start") title = `Batch ${ev.batchId} · Group ${ev.groupId} start — ${ev.group.length} tx`;
+      else if (ev.type === "tx_eval") title = `Tx ${ev.txId} evaluated`;
+      else if (ev.type === "group_merged") title = `Batch ${ev.batchId} · Group ${ev.groupId} merged`;
+      else if (ev.type === "execution_end") title = `Execution end`;
+      div.innerHTML = `<div style="font-weight:600">${escapeHtml(title)}</div>` +
+                      `<div class="muted tiny">${escapeHtml(JSON.stringify(ev))}</div>`;
+      div.onclick = () => jumpToEvent(parseInt(div.dataset.idx));
+      eventsEl.appendChild(div);
+    });
+    highlightEvent(0);
+  }
+
+  function setNodeState(id, state) {
+    if (!nodeCircleById.has(id)) return;
+    const circ = nodeCircleById.get(id);
+    circ.classed("pending", false).classed("ready", false).classed("running", false).classed("done", false);
+    circ.classed(state, true);
+    nodeState.set(id, state);
+  }
+
+  function selectNode(id) {
+    selIdEl.innerText = id;
+    selStateEl.innerText = nodeState.get(id) || "(unknown)";
+
+    // Show read/write if present in dag_output.json nodes
+    const nodeObj = (graph.nodes || []).find(n => (n.id === id));
+    if (nodeObj) {
+      // read/write arrays
+      const reads = nodeObj.read && nodeObj.read.length ? nodeObj.read.join(", ") : "—";
+      const writes = nodeObj.write && nodeObj.write.length ? nodeObj.write.join(", ") : "—";
+      selThreadEl.innerText = lastThreadForTx.get(id) || "(none)";
+      selDeltaEl.innerText = "{}";
+      // append read/write in Inspector (reuse selStateEl area for simplicity)
+      selStateEl.innerText = nodeState.get(id) || "(unknown)";
+      // Show as additional text under state (simple)
+      // We'll show reads/writes as part of selDelta text for now:
+      selDeltaEl.innerText = `reads: ${reads}\nwrites: ${writes}`;
+    } else {
+      selThreadEl.innerText = lastThreadForTx.get(id) || "(none)";
+      selDeltaEl.innerText = "{}";
+    }
+  }
+
+  function applyEvent(ev) {
+    if (!ev) return;
+    if (ev.type === "batch_start") {
+      (ev.batch || []).forEach(id => setNodeState(id, "ready"));
+    } else if (ev.type === "group_start") {
+      (ev.group || []).forEach(id => setNodeState(id, "running"));
+    } else if (ev.type === "tx_eval") {
+      setNodeState(ev.txId, "done");
+      if (ev.threadId) lastThreadForTx.set(ev.txId, ev.threadId.toString());
+    } else if (ev.type === "group_merged") {
+      lastMergedForGroup.push(ev);
+    }
+  }
+
+  // playback controls
+  playBtn.onclick = () => { if (tickPtr >= (trace ? trace.length : 0)) tickPtr = 0; startPlayback(); };
+  pauseBtn.onclick = () => stopPlayback();
+  stepBtn.onclick = () => { if (trace && tickPtr < trace.length) { applyEvent(trace[tickPtr]); highlightEvent(tickPtr); tickPtr++; updatePositionText(); } };
+  resetBtn.onclick = () => { tickPtr = 0; // reset all nodes to pending
+    (graph.nodes || []).forEach(n => setNodeState(n.id, "pending")); updatePositionText(); };
+
+  function startPlayback() {
+    stopPlayback();
+    const interval = +speedInput.value;
+    timer = setInterval(() => {
+      if (!trace) return;
+      if (tickPtr < trace.length) {
+        applyEvent(trace[tickPtr]);
+        highlightEvent(tickPtr);
+        tickPtr++;
+        updatePositionText();
+      } else {
+        stopPlayback();
+      }
+    }, interval);
+  }
+  function stopPlayback() { if (timer) { clearInterval(timer); timer = null; } }
+
+  function highlightEvent(idx) {
+    eventsEl.querySelectorAll(".ev").forEach(el => el.classList.remove("active"));
+    const el = eventsEl.querySelector(`.ev[data-idx='${idx}']`);
+    if (el) el.classList.add("active");
+  }
+
+  function updatePositionText() {
+    positionText.innerText = `event ${tickPtr}/${trace ? trace.length : 0}`;
+  }
+
+  function jumpToEvent(idx) {
+    // reset states
+    (graph.nodes || []).forEach(n => setNodeState(n.id, "pending"));
+    for (let i = 0; i <= idx && i < trace.length; ++i) applyEvent(trace[i]);
+    tickPtr = idx + 1;
+    highlightEvent(idx);
+    updatePositionText();
+  }
+
+  function escapeHtml(s) {
+    return (""+s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[m]));
+  }
+
+  // Build event list from loaded trace
+  function buildEventList() {
+    eventsEl.innerHTML = "";
+    if (!trace) return;
+    trace.forEach((ev, idx) => {
+      const div = document.createElement("div");
+      div.className = "ev";
+      div.dataset.idx = idx;
+      let title = ev.type;
+      if (ev.type === "batch_start") title = `Batch ${ev.batchId} start — ${ev.batch.length} tx`;
+      else if (ev.type === "group_start") title = `Batch ${ev.batchId} · Group ${ev.groupId} start — ${ev.group.length} tx`;
+      else if (ev.type === "tx_eval") title = `Tx ${ev.txId} evaluated`;
+      else if (ev.type === "group_merged") title = `Batch ${ev.batchId} · Group ${ev.groupId} merged`;
+      else if (ev.type === "execution_end") title = `Execution end`;
+      div.innerHTML = `<div style="font-weight:600">${escapeHtml(title)}</div><div class="muted tiny">${escapeHtml(JSON.stringify(ev))}</div>`;
+      div.onclick = () => jumpToEvent(parseInt(div.dataset.idx));
+      eventsEl.appendChild(div);
+    });
+    highlightEvent(0);
+  }
+
+  // init after loading
+  function updateUIAfterLoad() {
+    buildEventList();
+    updatePositionText();
+  }
+
+  // when graph+trace loaded, kick off UI build
+  // normalizeAndStart already called; call updateUIAfterLoad to ensure event list built
+  // but normalizeAndStart calls buildEventList — safe to call updateUIAfterLoad here:
+  // (we don't need it again)
+
+  window.addEventListener("resize", () => {
+    width = Math.max(400, window.innerWidth - 320);
+    height = Math.max(300, window.innerHeight - 56);
+    svg.attr("width", width).attr("height", height);
+    if (sim) sim.force("center", d3.forceCenter((width)/2,(height)/2));
+  });
+
+  </script>
+</body>
+</html>

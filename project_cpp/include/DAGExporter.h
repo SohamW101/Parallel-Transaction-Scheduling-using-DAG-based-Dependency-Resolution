@@ -1,14 +1,14 @@
-#ifndef DAG_EXPORTER_H
-#define DAG_EXPORTER_H
+// DAGExporter.h
+#ifndef DAGEXPORTER_H
+#define DAGEXPORTER_H
 
-#include <string>
 #include "DAG.h"
-using namespace std;
+#include <string>
 
 class DAGExporter {
 public:
-    static void exportToDOT(const DAG &dag, const string &filename);
-    static void exportToJSON(const DAG &dag, const string &filename);
+    static void exportToDOT(const DAG &dag, const std::string &filename);
+    static void exportToJSON(const DAG &dag, const std::string &filename);
 };
 
-#endif // DAG_EXPORTER_H
+#endif

@@ -1,6 +1,9 @@
-digraph DAG {
-    "Tx3";
-    "Tx2";
-    "Tx1";
+digraph G {
+    "Tx10" -> "Tx2";
+    "Tx7" -> "Tx5";
+    "Tx6" -> "Tx8";
+    "Tx9" -> "Tx10";
+    "Tx3" -> "Tx6";
+    "Tx2" -> "Tx7";
     "Tx1" -> "Tx3";
 }
