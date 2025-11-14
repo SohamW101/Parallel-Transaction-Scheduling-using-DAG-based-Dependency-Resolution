@@ -1,14 +1,25 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -O2 -Iinclude
+CXXFLAGS = -std=c++17 -O2 -pthread -I ./include
 
-SRC = $(wildcard src/*.cpp)
-OBJ = $(SRC:.cpp=.o)
-EXEC = project_cpp
+SRC = DAG.cpp Executor.cpp State.cpp ThreadPool.cpp Transaction.cpp Utils.cpp Metrics.cpp DAGExporter.cpp TraceWriter.cpp main.cpp
+TARGET = dipetrans_app.exe
 
-all: $(EXEC)
+all: $(TARGET)
 
-$(EXEC): $(OBJ)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+$(TARGET):
+  $(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET)
+
+run: $(TARGET)
+  ./$(TARGET)
+
+gui: $(TARGET)
+  ./$(TARGET)
+  cp dag_output.json gui/
+  cp trace.json gui/
+  cd gui && python -m http.server 8000
+
+serve:
+  cd gui && python -m http.server 8000
 
 clean:
-	rm -f $(OBJ) $(EXEC)
+  rm -f $(TARGET)
